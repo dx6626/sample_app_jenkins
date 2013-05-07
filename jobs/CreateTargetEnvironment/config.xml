@@ -1,0 +1,244 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<project>
+  <actions/>
+  <description>The Target Environment job is used to create a new AWS Cloudformation stack that is ready to accept a new Application Deployment. This job is run as part of &#xd;
+the &lt;b&gt;&lt;a href=&quot;/jenkins/view/DeliveryPipeline/&quot;&gt;DeliveryPipeline&lt;/a&gt;&lt;/b&gt;</description>
+  <keepDependencies>false</keepDependencies>
+  <properties/>
+  <scm class="hudson.plugins.git.GitSCM">
+    <configVersion>2</configVersion>
+    <userRemoteConfigs>
+      <hudson.plugins.git.UserRemoteConfig>
+        <name></name>
+        <refspec></refspec>
+        <url>git@github.com:stelligent/continuous_delivery_open_platform.git</url>
+      </hudson.plugins.git.UserRemoteConfig>
+    </userRemoteConfigs>
+    <branches>
+      <hudson.plugins.git.BranchSpec>
+        <name>master</name>
+      </hudson.plugins.git.BranchSpec>
+    </branches>
+    <disableSubmodules>false</disableSubmodules>
+    <recursiveSubmodules>false</recursiveSubmodules>
+    <doGenerateSubmoduleConfigurations>false</doGenerateSubmoduleConfigurations>
+    <authorOrCommitter>false</authorOrCommitter>
+    <clean>false</clean>
+    <wipeOutWorkspace>false</wipeOutWorkspace>
+    <pruneBranches>false</pruneBranches>
+    <remotePoll>false</remotePoll>
+    <ignoreNotifyCommit>false</ignoreNotifyCommit>
+    <useShallowClone>false</useShallowClone>
+    <buildChooser class="hudson.plugins.git.util.DefaultBuildChooser"/>
+    <gitTool>Default</gitTool>
+    <submoduleCfg class="list"/>
+    <relativeTargetDir></relativeTargetDir>
+    <reference></reference>
+    <excludedRegions></excludedRegions>
+    <excludedUsers></excludedUsers>
+    <gitConfigName></gitConfigName>
+    <gitConfigEmail></gitConfigEmail>
+    <skipTag>false</skipTag>
+    <includedRegions></includedRegions>
+    <scmName></scmName>
+  </scm>
+  <canRoam>true</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <triggers class="vector"/>
+  <concurrentBuild>false</concurrentBuild>
+  <builders>
+    <hudson.tasks.Shell>
+      <command>if [ $deployToProduction == true ]
+then
+ SSH_KEY=production
+ ApplicationName=${STACK_NAME}
+ STAGE=production
+
+ # Get Domain Name
+ Domain=`ruby ${WORKSPACE}/lib/showback_domain.rb --sdbdomain ${SIMPLEDB_STACK} \
+                                                  --item properties \
+                                                  --key ProductionDomain`
+
+ # Get Min and Max Autoscaling Group Sizes
+ MinSize=`ruby ${WORKSPACE}/lib/showback_domain.rb --sdbdomain ${SIMPLEDB_STACK} \
+                                                   --item properties \
+                                                   --key ProductionAutoscalingGroupMinSize`
+
+ # Get Domain Name
+ MaxSize=`ruby ${WORKSPACE}/lib/showback_domain.rb --sdbdomain ${SIMPLEDB_STACK} \
+                                                   --item properties \
+                                                   --key ProductionAutoscalingGroupMaxSize`
+
+ # Get Instance Type
+ InstanceType=`ruby ${WORKSPACE}/lib/showback_domain.rb --sdbdomain ${SIMPLEDB_STACK} \
+                                                        --item properties \
+                                                        --key InstanceType`
+else
+
+ # Create Private Key
+ ruby ${WORKSPACE}/lib/create_key.rb --stackname ${STACK_NAME}
+
+ SSH_KEY=${STACK_NAME}
+ ApplicationName=${STACK_NAME}
+ STAGE=staging
+
+ # Get Domain Name
+ Domain=`ruby ${WORKSPACE}/lib/showback_domain.rb --sdbdomain ${SIMPLEDB_STACK} \
+                                                  --item properties \
+                                                  --key DevelopmentDomain`
+ # Set Staging Database properties
+ DBUSER=transient
+ DBPASSWORD=transient
+ DBNAME=eops
+
+ ruby ${WORKSPACE}/lib/set_properties.rb --sdbdomain ${SIMPLEDB_STACK} \
+                                         --itemname ${STACK_NAME} \
+                                         --property DBUSER \
+                                         --value ${DBUSER}
+
+ ruby ${WORKSPACE}/lib/set_properties.rb --sdbdomain ${SIMPLEDB_STACK} \
+                                         --itemname ${STACK_NAME} \
+                                         --property DBPASSWORD \
+                                         --value ${DBPASSWORD}
+
+ ruby ${WORKSPACE}/lib/set_properties.rb --sdbdomain ${SIMPLEDB_STACK} \
+                                         --itemname ${STACK_NAME} \
+                                         --property DBNAME \
+                                         --value ${DBNAME}
+
+ # Get Min and Max Autoscaling Group Sizes
+ MinSize=`ruby ${WORKSPACE}/lib/showback_domain.rb --sdbdomain ${SIMPLEDB_STACK} \
+                                                   --item properties \
+                                                   --key DevelopmentAutoscalingGroupMinSize`
+
+ # Get Domain Name
+ MaxSize=`ruby ${WORKSPACE}/lib/showback_domain.rb --sdbdomain ${SIMPLEDB_STACK} \
+                                                   --item properties \
+                                                   --key DevelopmentAutoscalingGroupMaxSize`
+ # Get Instance Type
+ InstanceType=`ruby ${WORKSPACE}/lib/showback_domain.rb --sdbdomain ${SIMPLEDB_STACK} \
+                                                        --item properties \
+                                                        --key InstanceType`
+fi
+
+# Get Language
+Language=`ruby ${WORKSPACE}/lib/showback_domain.rb --sdbdomain ${SIMPLEDB_STACK} \
+                                                   --item properties \
+                                                   --key Language`
+
+# Get AMI ID
+LATEST_AMI=`ruby ${WORKSPACE}/lib/showback_domain.rb --sdbdomain ${SIMPLEDB_STACK} \
+                                                     --item ami \
+                                                     --key latest`
+# Get CFN Group ID
+Group=`ruby ${WORKSPACE}/lib/showback_domain.rb --sdbdomain ${SIMPLEDB_STACK} \
+                                                --item properties \
+                                                --key GROUP`
+# Get S3 Bucket
+S3Bucket=`ruby ${WORKSPACE}/lib/showback_domain.rb --sdbdomain ${SIMPLEDB_STACK} \
+                                                   --item properties \
+                                                   --key S3Bucket`
+# Get Security Group ID and transform into name
+SecurityGroupId=`ruby ${WORKSPACE}/lib/showback_domain.rb --sdbdomain ${SIMPLEDB_STACK} \
+                                                          --item properties \
+                                                          --key SGID`
+
+SecurityGroupName=`ruby ${WORKSPACE}/lib/return_security_group_name.rb --securityGroupId ${SecurityGroupId}`
+
+# Get Security Group Owner ID
+SecurityGroupOwnerId=`ruby ${WORKSPACE}/lib/showback_domain.rb --sdbdomain ${SIMPLEDB_STACK} \
+                                                               --item properties \
+                                                               --key SGIDOwner`
+
+# Create Cloudformaton Stack
+ruby ${WORKSPACE}/lib/create_stack.rb --stackname ${STACK_NAME} \
+                                      --group ${Group} \
+                                      --domain ${Domain} \
+                                      --type AMI \
+                                      --ami ${LATEST_AMI} \
+                                      --templatelocation ${WORKSPACE}/infrastructure/target/production.template \
+                                      --application ${ApplicationName} \
+                                      --sshkey ${SSH_KEY} \
+                                      --s3bucket ${S3Bucket} \
+                                      --securitygroup ${SecurityGroupName} \
+                                      --snstopic ${SNS_TOPIC} \
+                                      --language ${Language} \
+                                      --minsize ${MinSize} \
+                                      --maxsize ${MaxSize} \
+                                      --instancesize ${InstanceType} \
+                                      --sdbdomain ${SIMPLEDB_STACK}
+
+# Load SimpleDB Domain with Key/Value Pairs for Application Stack
+ruby ${WORKSPACE}/lib/load_domain.rb --sdbdomain ${SIMPLEDB_STACK} \
+                                     --filename ${STACK_NAME} \
+                                     --itemname ${STACK_NAME}
+
+if [ $deployToProduction == true ]
+then
+ DBUSER=&quot;PRIVATE&quot;
+ DBPASSWORD=&quot;PRVIATE&quot;
+ Endpoint=&quot;PRIVATE&quot;
+else
+ # Create staging Database
+ ruby ${WORKSPACE}/lib/create_database.rb --stackname ${STACK_NAME}-DATABASE \
+                                          --templatelocation ${WORKSPACE}/infrastructure/target/database.template \
+                                          --securityGroupOwner ${SecurityGroupOwnerId} \
+                                          --securityGroup ${SecurityGroupId} \
+                                          --dbName ${DBNAME} \
+                                          --dbUser ${DBUSER} \
+                                          --dbPassword ${DBPASSWORD}
+
+ # Load SimpleDB Domain with Key/Value Pairs for Database
+ ruby ${WORKSPACE}/lib/load_domain.rb --sdbdomain ${SIMPLEDB_STACK} \
+                                      --filename ${STACK_NAME}-DATABASE \
+                                      --itemname ${STACK_NAME}
+
+ # Get database Endpoint
+ Endpoint=`ruby ${WORKSPACE}/lib/showback_domain.rb --sdbdomain ${SIMPLEDB_STACK} \
+                                                    --item ${STACK_NAME} \
+                                                    --key DatabaseEndpoint`
+fi
+
+# Get Application Stack Instance Autoscaling Group
+AutoScalingGroup=`ruby ${WORKSPACE}/lib/showback_domain.rb --sdbdomain ${SIMPLEDB_STACK} \
+                                                           --item ${STACK_NAME} \
+                                                           --key AutoscalingGroup`
+
+# Get first Instance in Autoscaling Group&apos;s IP address
+HOST=`ruby ${WORKSPACE}/lib/return_instance_in_as_group.rb --autoscalingGroup ${AutoScalingGroup}`
+
+# Run Acceptance Tests
+cucumber ${WORKSPACE}/infrastructure/target/features/production.feature host=${HOST} user=ec2-user key=/usr/share/tomcat6/.ssh/id_rsa
+
+if [ $deployToProduction == false ]
+then
+ # Send email to user
+ ruby ${WORKSPACE}/lib/send_env_email.rb --email ${EMAIL}\
+                                         --stackname ${STACK_NAME}\
+                                         --domain ${Domain}\
+                                         --databaseEndpoint ${Endpoint} \
+                                         --databaseUsername ${DBUSER} \
+                                         --databasePassword ${DBPASSWORD} \
+                                         --ipaddress ${HOST} \
+                                         --sender havoc@stelligent.com
+fi</command>
+    </hudson.tasks.Shell>
+  </builders>
+  <publishers>
+    <hudson.plugins.parameterizedtrigger.BuildTrigger>
+      <configs>
+        <hudson.plugins.parameterizedtrigger.BuildTriggerConfig>
+          <configs>
+            <hudson.plugins.parameterizedtrigger.CurrentBuildParameters/>
+          </configs>
+          <projects>DeployApplication, </projects>
+          <condition>SUCCESS</condition>
+          <triggerWithNoParameters>false</triggerWithNoParameters>
+        </hudson.plugins.parameterizedtrigger.BuildTriggerConfig>
+      </configs>
+    </hudson.plugins.parameterizedtrigger.BuildTrigger>
+  </publishers>
+  <buildWrappers/>
+</project>
